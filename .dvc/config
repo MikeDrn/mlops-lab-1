@@ -1,0 +1,4 @@
+[core]
+    remote = my_local_remote
+['remote "my_local_remote"']
+    url = C:\Users\User\Documents\dvc_local_remote
