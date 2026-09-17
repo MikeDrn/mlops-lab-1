@@ -1,19 +1,3 @@
-"""
-Food-11 data preparation script.
-
-Reads raw images from ./data/food11_raw/{training,evaluation,validation}
-(filenames like "3_105.jpg" where the leading number is the category index)
-and produces two processed copies:
-
-  - ./data/food11_processed        : all images, resized to 128x128,
-                                      sorted into per-category subfolders
-  - ./data/food11_processed_mini   : same structure, capped at 100 images
-                                      per category per split (for dev/testing)
-
-Run with:
-    uv run python ./src/food11/data.py
-"""
-
 from pathlib import Path
 from PIL import Image
 
