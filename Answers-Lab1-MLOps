@@ -8,7 +8,7 @@ uv.lock: appears later, the first time I run/add a dependency, it locks exact re
 -------------------------------------------------------------
 Question 2: What are the created files. What do you think they are used for? And which ones should be pushed to git?
 
-.dvc/config: DVC's project-level configuration (remotes, settings).
+.dvc/config: DVC's project-level configuration (remotes, settings) (should be pushed to git).
 .dvc/.gitignore: tells git to ignore DVC's internal cache/tmp folders (should be pushed to git).
 .dvc/tmp/ and .dvc/cache/ : internal working files and the local object cache (do not push to git).
 .dvcignore: like .gitignore but for DVC, tells it which files to ignore when scanning folders (push to git).
