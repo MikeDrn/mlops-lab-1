@@ -4,7 +4,7 @@ pyproject.toml: the project's manifest: name, Python version requirement, depend
 main.py: a placeholder entry-point script.
 .python-version: pins the Python version uv will use for this project.
 README.md: placeholder readme.
-uv.lock: appears later, the first time I run/add a dependency, it locks exact resolved versions for reproducibility.
+uv.lock: appears later, the first time I run/add a dependency, it locks exact resolved versions for reproducibility..
 -------------------------------------------------------------
 Question 2: What are the created files. What do you think they are used for? And which ones should be pushed to git?
 
