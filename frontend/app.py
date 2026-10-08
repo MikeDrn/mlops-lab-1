@@ -14,6 +14,6 @@ if uploaded is not None:
     response = requests.post(f"{INFERENCE_URL}/predict", files=files)
     if response.ok:
         result = response.json()
-        st.write(f"**Prediction:** {result['prediction']} ({result['confidence']:.1%})")
+        st.write(f"**Prediction:** {result['category']} ({result['confidence']:.1%})")
     else:
         st.error(f"Inference service returned {response.status_code}: {response.text}")
