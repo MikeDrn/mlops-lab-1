@@ -1,0 +1,65 @@
+Question 1: What happens to everything written to /mlflow-data if you never mount a volume there and just docker run this image standalone? Try it: run the container, register nothing, stop it, remove it, start a new one from the same image — what do you see in the UI?
+
+Without a volume, everything written to /mlflow-data goes into the container's writable layer. This layer is deleted with the container when doing "docker rm". A new container from the same image starts from the image's original contents, so the UI shows no experiments, runs or registered models. If i stop a container, its layer is preserved, but if i remove it, it destroys the data.
+
+======================================
+
+Question 2: Why a named volume here instead of a bind mount to a folder in your repo (the way you might for local dev)? Would a bind mount work just as well?
+
+A bind mount would work functionally, but a named volume is the better choice here. A named volume is managed by Docker, so it doesn't depend on where my project is saved. It behaves the same on Windows and avoids path and permission problems. It's also safer for SQLite, since bind mounts through Docker Desktop's file sharing can be slower and cause file-locking issues on Windows. Because the data lives outside my project folder, I can't accidentally commit it to git. My dataset is versioned with DVC local remote, while mlflow's runtime state shouldn't be versioned by git or DVC, so keeping it in a Docker-managed volume keeps the two clearly separated.
+
+A bind mount is still useful in development because I can open and inspect the files directly, whereas a named volume needs `docker volume inspect` or `docker cp`. Its drawbacks are that it depends on a specific path on my machine, can cause permission problems, may be slower on Docker Desktop, and puts the DB and artifacts inside my repo, so I'd have to gitignore the folder to avoid committing it. For data that must persist between runs, a named volume is the better default.
+
+======================================
+
+Question 3: In Lab 3 you had to use host.docker.internal or --network host to reach mlflow from inside the container. In this lab, MLFLOW_TRACKING_URI will simply be http://mlflow:5000. Why does that hostname resolve now when it didn't before?
+
+Compose creates a private bridge network for the project and attaches all services to it. Docker's embedded DNS on that network resolves each service name to the IP address of that container. Before, the container was on the default bridge network, which has no name resolution for the host process. mlflow ran on the host, outside Docker's network, so I needed the special host.docker.internal name or --network host. Now mlflow is a container on the same network, so it's reachable by name.
+
+======================================
+
+Question 4: Why does the frontend read INFERENCE_URL from an environment variable instead of hardcoding http://inference:8000? Think about what happens if you ever docker run this frontend image on its own, outside Compose.
+
+If the URL is hardcoded, the frontend only works inside this Compose network, where a service called inference exists. If I ran the frontend image on its own with docker run, the name inference would not resolve and the app would fail. With an environment variable I can point the same image anywhere, for example http://host.docker.internal:8000. The default of 127.0.0.1:8000 also lets me run the app directly on my laptop. So the image stays the same and only the configuration changes.
+
+======================================
+
+Question 5: Only mlflow and frontend publish a port to the host. inference doesn't. Why not, and how does the frontend still reach it?
+
+Only mlflow and the frontend need to be opened from my browser. Nobody on my machine needs to call the inference API directly, so publishing its port would only add risk and possible port conflicts. The frontend reaches it through the private Compose network using the service name and the container port, http://inference:8000. Traffic between containers never needs a published port.
+
+======================================
+
+Question 6: depends_on here only waits for the mlflow container process to start, not for the tracking server inside it to be ready to accept connections. If your serve.py tries to load the Staging model at startup and mlflow isn't ready yet, what happens to the inference container? Look at docker compose logs inference if it fails.
+
+depends_on only waits for the mlflow container to start, not for the server inside it to accept requests. In my case the model failed to load and serve.py printed "Error loading model" in the logs. The container kept running, but the model stayed empty, so every call to /predict returned 503 "Model is not loaded". This also happened when mlflow rejected the request, and when the champion alias did not exist yet. A healthcheck on mlflow with depends_on condition service_healthy fixes the start order, and restarting inference loads the model once mlflow is ready.
+
+======================================
+
+Question 7: Run docker compose ps. Which services have a published port listed, and which don't? Does that match what you'd expect from the docker-compose.yml?
+
+mlflow shows 0.0.0.0:5000->5000/tcp and the frontend shows 0.0.0.0:8501->8501/tcp. inference only shows 8000/tcp, which means the port is exposed inside the network but not published to my machine. This matches the docker-compose.yml, where only mlflow and the frontend have a ports section.
+
+======================================
+
+Question 8: Refresh the frontend and upload an image again. Does the prediction come from the new model version, or the old one? Your serve.py loads the model once, at startup — what single command lets you pick up the new Staging version without rebuilding any image?
+
+It still comes from the old version. serve.py loads the model once at startup, so changing the champion alias in mlflow does nothing until the app loads the model again. This command fixes it without rebuilding anything: docker compose restart inference
+
+======================================
+
+Question 9: Why does restart alone work here — no rebuild needed? What does that tell you about what's baked into the inference image versus fetched at container startup?
+
+A restart starts the same container again, and the startup code asks mlflow for models:/food11@champion at that moment. So the model is not stored inside the image. The image only has the code and the libraries. The model is fetched from the registry every time the container starts, which lets me change models without rebuilding.
+
+======================================
+
+Question 10: Is your registered model and its Staging assignment still there after this down/up cycle? Now try docker compose down -v followed by docker compose up — what's different this time, and why?
+
+Yes, after docker compose down and docker compose up everything is still there. down removes the containers and the network but keeps named volumes, so the mlflow database and artifacts survive. After docker compose down -v the volume is deleted too. mlflow starts empty, with no runs, no registered model and no champion alias. inference then cannot load a model and returns 503 until I train again and register a new model.
+
+======================================
+
+Question 11: This compose file is still meant to run on one machine. What would have to change for the inference service to run as three replicas behind a load balancer, or for the mlflow service to survive a machine failure? (You don't need to implement this — just name what Docker Compose can't give you here.)
+
+Compose runs everything on one machine. It can start several copies of a service, but it has no real load balancer, no autoscaling, no rolling updates, and nothing to move containers to another machine if one fails. Running inference with three replicas behind a load balancer needs something like Kubernetes. For mlflow to survive a machine failure, the SQLite file on a local volume is not enough. It would need a separate database such as PostgreSQL, shared storage like S3 for the artifacts, and an orchestrator that can restart it elsewhere.
